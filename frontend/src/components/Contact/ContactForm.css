@@ -1,0 +1,219 @@
+/* ContactForm.css — Animated glow borders, modern inputs, Roboto */
+
+.contact-form-section {
+  padding: 80px 0;
+  background: var(--color-bg);
+}
+
+.contact-form__header {
+  text-align: center;
+  margin-bottom: 52px;
+}
+.contact-form__title {
+  font-family: 'Roboto', sans-serif;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 900;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+.contact-form__subtitle {
+  font-family: 'Roboto', sans-serif;
+  font-size: 16px;
+  color: var(--color-text-muted);
+}
+
+/* Wrapper */
+.contact-form__wrapper {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 40px;
+  align-items: start;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Info panel */
+.contact-form__info {
+  background: var(--gradient-primary);
+  color: #fff;
+  border-radius: var(--border-radius-xl);
+  padding: 40px 32px;
+  position: sticky;
+  top: calc(var(--nav-height) + 24px);
+  overflow: hidden;
+}
+.contact-form__info::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.07);
+}
+.contact-form__info h3 {
+  font-family: 'Roboto', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 28px;
+  position: relative;
+}
+.info-benefits { list-style: none; display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
+.info-benefits li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 14px;
+  color: rgba(255,255,255,0.9);
+  line-height: 1.5;
+}
+.benefit-icon { font-size: 18px; flex-shrink: 0; }
+.info-contact-details {
+  border-top: 1px solid rgba(255,255,255,0.2);
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.info-contact-item {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Roboto', sans-serif; font-size: 13px;
+}
+.info-contact-item a { color: rgba(255,255,255,0.85); text-decoration: none; transition: color var(--transition); }
+.info-contact-item a:hover { color: #fff; }
+
+/* Form card */
+.contact-form {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-xl);
+  padding: 40px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animated gradient border on the form card */
+.contact-form::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--border-radius-xl);
+  padding: 2px;
+  background: var(--gradient-primary);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+  pointer-events: none;
+}
+.contact-form:focus-within::before { opacity: 1; }
+
+/* Form rows */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Enhanced input — animated glow border */
+.form-input {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 400;
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  padding: 13px 16px;
+  transition: all var(--transition);
+}
+.form-input:focus {
+  border-color: var(--color-primary);
+  background: var(--color-bg-alt);
+  box-shadow: 0 0 0 4px rgba(26,86,219,0.10), 0 0 20px rgba(26,86,219,0.08);
+  transform: translateY(-1px);
+}
+.form-input.error {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 4px rgba(239,68,68,0.08);
+}
+
+/* Select */
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+
+/* DatePicker */
+.datepicker-wrapper { width: 100%; }
+.datepicker-wrapper .react-datepicker-wrapper { width: 100%; }
+.datepicker-wrapper input { width: 100%; }
+
+/* Checkbox */
+.form-checkbox-group { padding: 4px 0; transition: background var(--transition); }
+.form-checkbox-group.error-highlight {
+  background: rgba(239,68,68,0.04);
+  padding: 10px 12px;
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 10px;
+}
+.form-checkbox-label {
+  display: flex; align-items: flex-start; gap: 10px;
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif; font-size: 14px; color: var(--color-text-muted); line-height: 1.55;
+}
+.form-checkbox {
+  width: 18px; height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer; flex-shrink: 0; margin-top: 2px;
+}
+.form-policy-link { color: var(--color-primary); font-weight: 600; text-decoration: underline; }
+
+/* Submit button */
+.contact-form__submit {
+  width: 100%;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 15px;
+  border-radius: 10px;
+  animation: borderGlow 3s ease-in-out infinite;
+}
+
+/* Success state */
+.contact-form__success {
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 64px 40px;
+  background: var(--color-bg-card);
+  border-radius: var(--border-radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  animation: fadeInUp 0.5s ease;
+}
+.success-icon { font-size: 60px; margin-bottom: 20px; }
+.contact-form__success h2 {
+  font-family: 'Roboto', sans-serif; font-size: 28px; font-weight: 900; margin-bottom: 12px;
+}
+.contact-form__success p {
+  font-family: 'Roboto', sans-serif; font-size: 15px; color: var(--color-text-muted); margin-bottom: 28px; line-height: 1.7;
+}
+
+/* Responsive */
+@media (max-width: 960px) {
+  .contact-form__wrapper { grid-template-columns: 1fr; }
+  .contact-form__info { position: static; }
+}
+@media (max-width: 580px) {
+  .form-row { grid-template-columns: 1fr; }
+  .contact-form { padding: 24px 16px; }
+}

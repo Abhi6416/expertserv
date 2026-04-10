@@ -1,0 +1,54 @@
+/* LegalPage.css — Privacy Policy & Terms of Use */
+.legal-page {
+  padding: 64px 0 96px;
+  background: var(--color-bg);
+  min-height: 60vh;
+}
+.legal-page__inner { max-width: 800px; margin: 0 auto; }
+.legal-page__header {
+  margin-bottom: 44px;
+  padding-bottom: 28px;
+  border-bottom: 2px solid var(--color-border);
+}
+.legal-page__header h1 {
+  font-family: 'Roboto', sans-serif;
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 900;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.legal-page__date {
+  font-family: 'Roboto', sans-serif;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.legal-page__body { display: flex; flex-direction: column; gap: 36px; }
+.legal-page__body h2 {
+  font-family: 'Roboto', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  padding-left: 14px;
+  border-left: 3px solid var(--color-primary);
+}
+.legal-page__body p {
+  font-family: 'Roboto', sans-serif;
+  font-size: 15px;
+  color: var(--color-text-muted);
+  line-height: 1.8;
+  margin-bottom: 10px;
+}
+.legal-page__body ul {
+  margin: 10px 0 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legal-page__body li {
+  font-family: 'Roboto', sans-serif;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.65;
+}
+.legal-page__body a { color: var(--color-primary); font-weight: 500; }
+.legal-page__body strong { color: var(--color-text); font-weight: 600; }
