@@ -26,23 +26,23 @@ connectDB();
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
 
-// CORS — allows both local dev and production frontend
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "http://localhost:3000",
-        process.env.FRONTEND_URL, // your Vercel URL goes here
-      ];
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
+// CORS — supports both local development and production
+    app.use(
+      cors({
+        origin: function (origin, callback) {
+          const allowedOrigins = [
+            "http://localhost:3000",
+            process.env.FRONTEND_URL,
+          ];
+          if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error("Not allowed by CORS"));
+          }
+        },
+        credentials: true,
+      })
+    );
 
 // Parse incoming JSON request bodies (max 10mb)
 app.use(express.json({ limit: "10mb" }));

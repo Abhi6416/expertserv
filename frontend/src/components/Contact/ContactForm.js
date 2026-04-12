@@ -91,11 +91,11 @@ const ContactForm = () => {
       const API_URL = process.env.REACT_APP_API_URL || "/api";
 
 const { data } = await axios.post(
-  `${API_URL}/contact/submit`,
+  `${process.env.REACT_APP_API_URL}/contact/submit`,
   {
     ...form,
     preferredDate: form.preferredDate?.toISOString(),
-    recaptchaToken
+    recaptchaToken,
   }
 );
 
