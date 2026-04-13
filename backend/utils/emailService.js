@@ -1,50 +1,43 @@
 /**
  * utils/emailService.js — Nodemailer Email Notification Service
- * --------------------------------------------------------------
- * Sends email alerts when a new lead submits the contact form.
- *
- * 👇 Configuration (set in .env):
- *    EMAIL_HOST     — SMTP host (e.g. smtp.gmail.com)
- *    EMAIL_PORT     — SMTP port (587 for TLS)
- *    EMAIL_USER     — Your Gmail address
- *    EMAIL_PASS     — Gmail App Password (NOT your real password)
- *                     → Gmail → Security → 2FA → App Passwords
- *    EMAIL_FROM     — Sender display name + email
- *    EMAIL_TO       — Recipient email for lead notifications
+ * Updated: Better error logging for production debugging
  */
 
 const nodemailer = require("nodemailer");
 
-// ── Create reusable transporter ───────────────────────────────────────────────
-// This is created once and reused for all emails
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || "smtp.gmail.com",
     port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: process.env.EMAIL_SECURE === "true", // true for port 465, false for 587
+    secure: process.env.EMAIL_SECURE === "true",
     auth: {
-      // 👇 These come from your .env file
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
+    },
+    // Add these options for production servers
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 };
 
-/**
- * sendLeadNotification
- * Sends a formatted HTML email to the team when a new lead comes in.
- *
- * @param {Object} leadData — The contact form data
- * @returns {Promise<boolean>} — true if sent, false if failed
- */
 const sendLeadNotification = async (leadData) => {
   try {
+    // Log env variables presence (not values) for debugging
+    console.log("📧 Email config check:", {
+      host: process.env.EMAIL_HOST ? "✅ SET" : "❌ MISSING",
+      port: process.env.EMAIL_PORT ? "✅ SET" : "❌ MISSING",
+      user: process.env.EMAIL_USER ? "✅ SET" : "❌ MISSING",
+      pass: process.env.EMAIL_PASS ? "✅ SET" : "❌ MISSING",
+      to:   process.env.EMAIL_TO   ? "✅ SET" : "❌ MISSING",
+    });
+
     const transporter = createTransporter();
 
-    // ── Verify transporter config ─────────────────────────────────────────────
+    // Verify connection before sending
     await transporter.verify();
+    console.log("✅ SMTP connection verified");
 
-    // ── Build HTML email body ─────────────────────────────────────────────────
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -64,8 +57,7 @@ const sendLeadNotification = async (leadData) => {
       <body>
         <div class="container">
           <h2>🔔 New Lead — ExpertServ Solution</h2>
-          <p style="color:#777; font-size:13px;">A new contact form submission was received.</p>
-
+          <p style="color:#777;font-size:13px;">A new contact form submission was received.</p>
           <div class="field">
             <div class="label">Full Name</div>
             <div class="value">${leadData.name}</div>
@@ -76,7 +68,7 @@ const sendLeadNotification = async (leadData) => {
           </div>
           <div class="field">
             <div class="label">Phone</div>
-            <div class="value"><a href="tel:${leadData.phone}">${leadData.phone}</a></div>
+            <div class="value">${leadData.phone}</div>
           </div>
           <div class="field">
             <div class="label">Company</div>
@@ -87,12 +79,15 @@ const sendLeadNotification = async (leadData) => {
             <div class="value">${leadData.state}</div>
           </div>
           <div class="field">
-            <div class="label">Solution Interested In</div>
+            <div class="label">Solution</div>
             <div class="value"><span class="badge">${leadData.solution}</span></div>
           </div>
           <div class="field">
             <div class="label">Preferred Date & Time</div>
-            <div class="value">${new Date(leadData.preferredDate).toLocaleDateString("en-IN", { dateStyle: "full" })} at ${leadData.preferredTime}</div>
+            <div class="value">
+              ${new Date(leadData.preferredDate).toLocaleDateString("en-IN", { dateStyle: "full" })} 
+              at ${leadData.preferredTime}
+            </div>
           </div>
           <div class="footer">ExpertServ Solution CRM · Automated Lead Notification</div>
         </div>
@@ -100,19 +95,21 @@ const sendLeadNotification = async (leadData) => {
       </html>
     `;
 
-    // ── Send the email ─────────────────────────────────────────────────────────
     const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"ExpertServ" <noreply@expertserv.com>',
-      to: process.env.EMAIL_TO || "leads@expertservsolution.com",
+      from: process.env.EMAIL_FROM || `"ExpertServ" <${process.env.EMAIL_USER}>`,
+      to:   process.env.EMAIL_TO,
       subject: `🔔 New Lead: ${leadData.name} — ${leadData.solution} (${leadData.companyName})`,
       html: htmlContent,
     });
 
-    console.log("✅ Email sent:", info.messageId);
+    console.log("✅ Email sent successfully. Message ID:", info.messageId);
     return true;
+
   } catch (error) {
-    // Log but don't crash — notification failure shouldn't block form submission
-    console.error("❌ Email notification failed:", error.message);
+    // Detailed error logging for production debugging
+    console.error("❌ Email failed. Error code:", error.code);
+    console.error("❌ Email failed. Error message:", error.message);
+    console.error("❌ Email failed. Full error:", JSON.stringify(error, null, 2));
     return false;
   }
 };

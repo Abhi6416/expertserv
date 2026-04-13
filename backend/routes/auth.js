@@ -1,15 +1,25 @@
-/**
- * routes/auth.js — Authentication Routes
- * ----------------------------------------
- * POST /api/auth/login — Admin login
- * POST /api/auth/setup — One-time admin creation (disable in prod)
- */
+// TEMPORARY — test email route
+// DELETE THIS after testing
+router.get("/test-email", async (req, res) => {
+  const { sendLeadNotification } = require("../utils/emailService");
 
-const express = require("express");
-const router = express.Router();
-const { loginAdmin, setupAdmin } = require("../controllers/authController");
+  const testLead = {
+    name: "Test User",
+    email: "test@example.com",
+    phone: "9876543210",
+    companyName: "Test Company",
+    state: "Delhi",
+    solution: "IVR",
+    preferredDate: new Date(),
+    preferredTime: "10:00 AM",
+  };
 
-router.post("/login", loginAdmin);
-router.post("/setup", setupAdmin); // ⚠️ Remove/disable this in production
+  const result = await sendLeadNotification(testLead);
 
-module.exports = router;
+  res.json({
+    success: result,
+    message: result
+      ? "✅ Email sent! Check your inbox."
+      : "❌ Email failed. Check Render logs for details.",
+  });
+});
