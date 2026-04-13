@@ -1,39 +1,33 @@
 /**
- * utils/emailService.js — Nodemailer Email Notification Service
- * Updated: Better error logging for production debugging
+ * utils/emailService.js — Brevo HTTP API Email Service
+ * ------------------------------------------------------
+ * Uses Brevo HTTP API instead of SMTP.
+ * HTTP works on all servers including Render free tier.
+ * SMTP port 587/465 is blocked on Render free tier.
+ *
+ * Required env variable:
+ *   BREVO_API_KEY — from Brevo dashboard → SMTP & API → API Keys
+ *   EMAIL_TO      — where to send lead notifications
+ *   EMAIL_FROM    — your verified sender email in Brevo
  */
 
-const nodemailer = require("nodemailer");
-
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,   // smtp-relay.brevo.com
-    port: parseInt(process.env.EMAIL_PORT) || 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-};
+const axios = require("axios");
 
 const sendLeadNotification = async (leadData) => {
   try {
-    // Log env variables presence (not values) for debugging
+    // Check required env variables
     console.log("📧 Email config check:", {
-      host: process.env.EMAIL_HOST ? "✅ SET" : "❌ MISSING",
-      port: process.env.EMAIL_PORT ? "✅ SET" : "❌ MISSING",
-      user: process.env.EMAIL_USER ? "✅ SET" : "❌ MISSING",
-      pass: process.env.EMAIL_PASS ? "✅ SET" : "❌ MISSING",
-      to:   process.env.EMAIL_TO   ? "✅ SET" : "❌ MISSING",
+      apiKey: process.env.BREVO_API_KEY ? "✅ SET" : "❌ MISSING",
+      to:     process.env.EMAIL_TO      ? "✅ SET" : "❌ MISSING",
+      from:   process.env.EMAIL_FROM    ? "✅ SET" : "❌ MISSING",
     });
 
-    const transporter = createTransporter();
+    if (!process.env.BREVO_API_KEY) {
+      console.error("❌ BREVO_API_KEY is not set");
+      return false;
+    }
 
-    // Verify connection before sending
-    await transporter.verify();
-    console.log("✅ SMTP connection verified");
-
+    // Build HTML email content
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -81,7 +75,7 @@ const sendLeadNotification = async (leadData) => {
           <div class="field">
             <div class="label">Preferred Date & Time</div>
             <div class="value">
-              ${new Date(leadData.preferredDate).toLocaleDateString("en-IN", { dateStyle: "full" })} 
+              ${new Date(leadData.preferredDate).toLocaleDateString("en-IN", { dateStyle: "full" })}
               at ${leadData.preferredTime}
             </div>
           </div>
@@ -91,21 +85,45 @@ const sendLeadNotification = async (leadData) => {
       </html>
     `;
 
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || `"ExpertServ" <${process.env.EMAIL_USER}>`,
-      to:   process.env.EMAIL_TO,
-      subject: `🔔 New Lead: ${leadData.name} — ${leadData.solution} (${leadData.companyName})`,
-      html: htmlContent,
-    });
+    // Extract sender email from EMAIL_FROM env variable
+    // EMAIL_FROM format: "ExpertServ Solution <email@domain.com>"
+    const fromEmail = process.env.EMAIL_FROM
+      ? process.env.EMAIL_FROM.match(/<(.+)>/)?.[1] || process.env.EMAIL_FROM
+      : process.env.EMAIL_USER;
 
-    console.log("✅ Email sent successfully. Message ID:", info.messageId);
+    const fromName = process.env.EMAIL_FROM
+      ? process.env.EMAIL_FROM.split("<")[0].trim().replace(/"/g, "")
+      : "ExpertServ Solution";
+
+    // Send via Brevo HTTP API — works on all servers
+    const response = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          name:  fromName,
+          email: fromEmail,
+        },
+        to: [
+          { email: process.env.EMAIL_TO },
+        ],
+        subject: `🔔 New Lead: ${leadData.name} — ${leadData.solution} (${leadData.companyName})`,
+        htmlContent: htmlContent,
+      },
+      {
+        headers: {
+          "accept":       "application/json",
+          "content-type": "application/json",
+          "api-key":      process.env.BREVO_API_KEY,
+        },
+        timeout: 15000, // 15 second timeout
+      }
+    );
+
+    console.log("✅ Email sent via Brevo API. MessageId:", response.data.messageId);
     return true;
 
   } catch (error) {
-    // Detailed error logging for production debugging
-    console.error("❌ Email failed. Error code:", error.code);
-    console.error("❌ Email failed. Error message:", error.message);
-    console.error("❌ Email failed. Full error:", JSON.stringify(error, null, 2));
+    console.error("❌ Email failed:", error.response?.data || error.message);
     return false;
   }
 };
