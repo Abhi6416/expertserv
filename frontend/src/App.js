@@ -10,6 +10,8 @@ import Navbar from "./components/Navbar/Navbar";
 import Footer from "./components/Footer/Footer";
 import "./styles/globals.css";
 import "react-datepicker/dist/react-datepicker.css";
+import { useEffect } from "react";
+import axios from "axios";
 
 /* ── Lazy-loaded pages (code splitting) ─────────────────────────────────────
  * Each page is loaded only when the user navigates to it.
@@ -48,6 +50,21 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+
+  // ✅ Wake up Render backend on app load
+  useEffect(() => {
+    const wakeUp = async () => {
+      try {
+        const base = process.env.REACT_APP_API_URL?.replace("/api", "");
+        await axios.get(`${base}/api/health?t=${Date.now()}`);
+      } catch (error) {
+        // silently fail (no console spam)
+      }
+    };
+
+    wakeUp();
+  }, []);
+
   return (
     <ThemeProvider>
       <Router>
@@ -58,6 +75,7 @@ function App() {
             style: { fontFamily: "'Roboto', sans-serif", fontSize: "14px" },
           }}
         />
+
         <Routes>
           {/* Admin routes — no Navbar/Footer */}
           <Route path="/admin/login" element={

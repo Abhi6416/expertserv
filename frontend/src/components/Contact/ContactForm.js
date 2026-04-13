@@ -59,17 +59,18 @@ const ContactForm = () => {
   // Render free tier sleeps after 15 min. Pinging on page load ensures backend
   // is awake before form submit, preventing reCAPTCHA expiry while server wakes.
   useEffect(() => {
-    const wakeUpBackend = async () => {
-      try {
-        const baseURL = process.env.REACT_APP_API_URL?.replace("/api", "");
-        await axios.get(`${baseURL}/api/health`);
-        console.log("✅ Backend is awake");
-      } catch (err) {
-        // Silent fail — wake-up ping only, not critical
-      }
-    };
-    wakeUpBackend();
-  }, []); // runs once on component mount
+  const wakeUpBackend = async () => {
+    try {
+      const baseURL = process.env.REACT_APP_API_URL?.replace("/api", "");
+      // Add timestamp to prevent browser caching the health check
+      await axios.get(`${baseURL}/api/health?t=${Date.now()}`);
+      console.log("✅ Backend is awake");
+    } catch (err) {
+      // Silent fail
+    }
+  };
+  wakeUpBackend();
+}, []); // runs once on component mount
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
