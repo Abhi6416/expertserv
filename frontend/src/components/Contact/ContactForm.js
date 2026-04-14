@@ -1,11 +1,12 @@
 /**
  * ContactForm.js — Enhanced Contact Form (Page 2)
- * Fixes applied:
- *  1. useEffect moved INSIDE component (was outside — React hook violation)
- *  2. Fixed duplicate label htmlFor="preferredDate" → changed to htmlFor="preferredTime"
- *  3. Fixed API URL — uses API_URL variable consistently
- *  4. Removed duplicate useEffect import (now imported with React at top)
- *  5. Wake-up ping runs correctly inside component on mount
+ * Changes in this version:
+ *  1. Wake-up ping improved — cache busting added (?t=timestamp)
+ *  2. handleSubmit — axios timeout 30s added
+ *  3. handleSubmit — ECONNABORTED friendly error message added
+ *  4. handleSubmit — reCAPTCHA double check before submit added
+ *  5. Email notification code fully removed from frontend
+ *  6. All previous fixes retained
  */
 
 import React, { useState, useRef, useEffect } from "react";
@@ -17,6 +18,7 @@ import axios from "axios";
 import "react-datepicker/dist/react-datepicker.css";
 import "./ContactForm.css";
 
+// ── Indian States ──────────────────────────────────────────────────────────────
 const INDIAN_STATES = [
   "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
   "Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka",
@@ -27,6 +29,7 @@ const INDIAN_STATES = [
   "Daman and Diu","Delhi","Jammu and Kashmir","Ladakh","Lakshadweep","Puducherry",
 ];
 
+// ── Solutions ──────────────────────────────────────────────────────────────────
 const SOLUTIONS = [
   { value: "IVR", label: "IVR — Interactive Voice Response" },
   { value: "RCS", label: "RCS — Rich Communication Services" },
@@ -34,18 +37,27 @@ const SOLUTIONS = [
   { value: "OTP", label: "OTP — One-Time Password"           },
 ];
 
+// ── Time Slots ─────────────────────────────────────────────────────────────────
 const TIME_SLOTS = [
   "09:00 AM","09:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM",
   "12:00 PM","12:30 PM","01:00 PM","01:30 PM","02:00 PM","02:30 PM",
   "03:00 PM","03:30 PM","04:00 PM","04:30 PM","05:00 PM","05:30 PM",
 ];
 
+// ── Initial Form State ─────────────────────────────────────────────────────────
 const INITIAL = {
-  name:"", email:"", phone:"", companyName:"",
-  state:"", solution:"", preferredDate: null,
-  preferredTime:"", agreedToPolicy: false,
+  name:           "",
+  email:          "",
+  phone:          "",
+  companyName:    "",
+  state:          "",
+  solution:       "",
+  preferredDate:  null,
+  preferredTime:  "",
+  agreedToPolicy: false,
 };
 
+// ── ContactForm Component ──────────────────────────────────────────────────────
 const ContactForm = () => {
   const [form,           setForm]           = useState(INITIAL);
   const [errors,         setErrors]         = useState({});
@@ -54,35 +66,40 @@ const ContactForm = () => {
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const recaptchaRef = useRef(null);
 
-  // ── Wake up Render backend on page load ──────────────────────────────────────
-  // FIX: useEffect is now INSIDE the component — was outside before (invalid)
-  // Render free tier sleeps after 15 min. Pinging on page load ensures backend
-  // is awake before form submit, preventing reCAPTCHA expiry while server wakes.
+  // ── Wake up Render backend on page load ─────────────────────────────────────
+  // Render free tier sleeps after 15 min of inactivity.
+  // Pinging with ?t=timestamp prevents browser caching (304 responses).
+  // This ensures backend is fully awake BEFORE user fills and submits the form,
+  // which prevents reCAPTCHA token expiry during server cold-start.
   useEffect(() => {
-  const wakeUpBackend = async () => {
-    try {
-      const baseURL = process.env.REACT_APP_API_URL?.replace("/api", "");
-      // Add timestamp to prevent browser caching the health check
-      await axios.get(`${baseURL}/api/health?t=${Date.now()}`);
-      console.log("✅ Backend is awake");
-    } catch (err) {
-      // Silent fail
-    }
-  };
-  wakeUpBackend();
-}, []); // runs once on component mount
+    const wakeUpBackend = async () => {
+      try {
+        const baseURL = process.env.REACT_APP_API_URL?.replace("/api", "");
+        // cache-busting timestamp prevents 304 cached responses
+        await axios.get(`${baseURL}/api/health?t=${Date.now()}`);
+        console.log("✅ Backend is awake");
+      } catch (err) {
+        // Silent fail — wake-up ping is not critical
+      }
+    };
+    wakeUpBackend();
+  }, []); // runs once when contact page loads
 
+  // ── Input Change Handler ─────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm(p => ({ ...p, [name]: type === "checkbox" ? checked : value }));
+    // Clear field error as user types
     if (errors[name]) setErrors(p => ({ ...p, [name]: "" }));
   };
 
+  // ── Date Change Handler ──────────────────────────────────────────────────────
   const handleDateChange = (date) => {
     setForm(p => ({ ...p, preferredDate: date }));
     if (errors.preferredDate) setErrors(p => ({ ...p, preferredDate: "" }));
   };
 
+  // ── Validation ───────────────────────────────────────────────────────────────
   const validate = () => {
     const e = {};
     if (!form.name.trim() || form.name.trim().length < 2)
@@ -108,9 +125,11 @@ const ContactForm = () => {
     return e;
   };
 
+  // ── Form Submit Handler ──────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Run client-side validation first
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -120,12 +139,20 @@ const ContactForm = () => {
       return;
     }
 
+    // Double-check reCAPTCHA is still valid before sending request
+    // This catches cases where token expired between completing and submitting
+    if (!recaptchaToken) {
+      setErrors(prev => ({ ...prev, recaptcha: "Please complete the reCAPTCHA" }));
+      toast.error("Please complete the reCAPTCHA verification.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // FIX: API_URL defined once and used consistently
-      // Set REACT_APP_API_URL in Vercel env variables as:
-      // https://expertserv-backend.onrender.com/api
+      // API_URL from environment variable
+      // Local:      http://localhost:5000/api
+      // Production: https://expertserv-backend.onrender.com/api
       const API_URL = process.env.REACT_APP_API_URL || "/api";
 
       const { data } = await axios.post(
@@ -134,30 +161,47 @@ const ContactForm = () => {
           ...form,
           preferredDate: form.preferredDate?.toISOString(),
           recaptchaToken,
+        },
+        {
+          // 30 second timeout — enough for Render cold start if wake-up ping missed
+          timeout: 30000,
         }
       );
 
       if (data.success) {
         setIsSuccess(true);
-        toast.success("Your inquiry has been submitted!");
+        toast.success("Your inquiry has been submitted successfully!");
         setForm(INITIAL);
         setRecaptchaToken(null);
         recaptchaRef.current?.reset();
       }
 
     } catch (error) {
+      // Show server-side field errors if returned
       const serverErrors = error.response?.data?.errors;
       if (serverErrors) setErrors(serverErrors);
-      toast.error(
-        error.response?.data?.message || "Submission failed. Please try again."
-      );
+
+      // Friendly message for timeout (Render cold start took too long)
+      if (error.code === "ECONNABORTED") {
+        toast.error(
+          "Server is taking too long to respond. Please wait a moment and try again."
+        );
+      } else {
+        toast.error(
+          error.response?.data?.message || "Submission failed. Please try again."
+        );
+      }
+
+      // Always reset reCAPTCHA on any error so user can try again
       recaptchaRef.current?.reset();
       setRecaptchaToken(null);
+
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ── Success Screen ───────────────────────────────────────────────────────────
   if (isSuccess) {
     return (
       <section className="contact-form-section">
@@ -169,7 +213,10 @@ const ContactForm = () => {
               Your inquiry has been received. Our team will reach out within
               24 business hours at <strong>{form.email}</strong>.
             </p>
-            <button className="btn btn-primary" onClick={() => setIsSuccess(false)}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setIsSuccess(false)}
+            >
               Submit Another Inquiry
             </button>
           </div>
@@ -178,10 +225,12 @@ const ContactForm = () => {
     );
   }
 
+  // ── Main Form ────────────────────────────────────────────────────────────────
   return (
     <section className="contact-form-section" id="contact-form">
       <div className="container">
 
+        {/* Header */}
         <div className="contact-form__header">
           <h2 className="contact-form__title">Schedule a Consultation</h2>
           <p className="contact-form__subtitle">
@@ -224,81 +273,127 @@ const ContactForm = () => {
             {/* Row 1 — Name + Email */}
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label" htmlFor="name">Full Name *</label>
+                <label className="form-label" htmlFor="name">
+                  Full Name *
+                </label>
                 <input
-                  id="name" name="name" type="text"
+                  id="name"
+                  name="name"
+                  type="text"
                   className={`form-input ${errors.name ? "error" : ""}`}
-                  placeholder="John Doe" value={form.name}
-                  onChange={handleChange} autoComplete="name"
+                  placeholder="John Doe"
+                  value={form.name}
+                  onChange={handleChange}
+                  autoComplete="name"
                 />
-                {errors.name && <span className="form-error">⚠ {errors.name}</span>}
+                {errors.name && (
+                  <span className="form-error">⚠ {errors.name}</span>
+                )}
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="email">Email Address *</label>
+                <label className="form-label" htmlFor="email">
+                  Email Address *
+                </label>
                 <input
-                  id="email" name="email" type="email"
+                  id="email"
+                  name="email"
+                  type="email"
                   className={`form-input ${errors.email ? "error" : ""}`}
-                  placeholder="john@company.com" value={form.email}
-                  onChange={handleChange} autoComplete="email"
+                  placeholder="john@company.com"
+                  value={form.email}
+                  onChange={handleChange}
+                  autoComplete="email"
                 />
-                {errors.email && <span className="form-error">⚠ {errors.email}</span>}
+                {errors.email && (
+                  <span className="form-error">⚠ {errors.email}</span>
+                )}
               </div>
             </div>
 
             {/* Row 2 — Phone + Company */}
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label" htmlFor="phone">Phone Number * (10 digits)</label>
+                <label className="form-label" htmlFor="phone">
+                  Phone Number * (10 digits)
+                </label>
                 <input
-                  id="phone" name="phone" type="tel"
+                  id="phone"
+                  name="phone"
+                  type="tel"
                   className={`form-input ${errors.phone ? "error" : ""}`}
-                  placeholder="98XXXXXXXX" value={form.phone}
-                  onChange={handleChange} maxLength={10} autoComplete="tel"
+                  placeholder="98XXXXXXXX"
+                  value={form.phone}
+                  onChange={handleChange}
+                  maxLength={10}
+                  autoComplete="tel"
                 />
-                {errors.phone && <span className="form-error">⚠ {errors.phone}</span>}
+                {errors.phone && (
+                  <span className="form-error">⚠ {errors.phone}</span>
+                )}
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="companyName">Company Name *</label>
+                <label className="form-label" htmlFor="companyName">
+                  Company Name *
+                </label>
                 <input
-                  id="companyName" name="companyName" type="text"
+                  id="companyName"
+                  name="companyName"
+                  type="text"
                   className={`form-input ${errors.companyName ? "error" : ""}`}
-                  placeholder="Acme Corp Pvt. Ltd." value={form.companyName}
+                  placeholder="Acme Corp Pvt. Ltd."
+                  value={form.companyName}
                   onChange={handleChange}
                 />
-                {errors.companyName && <span className="form-error">⚠ {errors.companyName}</span>}
+                {errors.companyName && (
+                  <span className="form-error">⚠ {errors.companyName}</span>
+                )}
               </div>
             </div>
 
             {/* Row 3 — State + Solution */}
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label" htmlFor="state">State *</label>
+                <label className="form-label" htmlFor="state">
+                  State *
+                </label>
                 <select
-                  id="state" name="state"
+                  id="state"
+                  name="state"
                   className={`form-input form-select ${errors.state ? "error" : ""}`}
-                  value={form.state} onChange={handleChange}
+                  value={form.state}
+                  onChange={handleChange}
                 >
                   <option value="">Select your state</option>
-                  {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {INDIAN_STATES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
-                {errors.state && <span className="form-error">⚠ {errors.state}</span>}
+                {errors.state && (
+                  <span className="form-error">⚠ {errors.state}</span>
+                )}
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="solution">Select Solution *</label>
+                <label className="form-label" htmlFor="solution">
+                  Select Solution *
+                </label>
                 <select
-                  id="solution" name="solution"
+                  id="solution"
+                  name="solution"
                   className={`form-input form-select ${errors.solution ? "error" : ""}`}
-                  value={form.solution} onChange={handleChange}
+                  value={form.solution}
+                  onChange={handleChange}
                 >
                   <option value="">Choose a solution</option>
                   {SOLUTIONS.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </select>
-                {errors.solution && <span className="form-error">⚠ {errors.solution}</span>}
+                {errors.solution && (
+                  <span className="form-error">⚠ {errors.solution}</span>
+                )}
               </div>
             </div>
 
@@ -327,7 +422,7 @@ const ContactForm = () => {
                 )}
               </div>
 
-              {/* Preferred Time — FIX: label htmlFor changed from preferredDate to preferredTime */}
+              {/* Preferred Time */}
               <div className="form-group">
                 <label className="form-label" htmlFor="preferredTime">
                   Preferred Time *
@@ -340,7 +435,9 @@ const ContactForm = () => {
                   onChange={handleChange}
                 >
                   <option value="">Select a time slot</option>
-                  {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                  {TIME_SLOTS.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
                 {errors.preferredTime && (
                   <span className="form-error">⚠ {errors.preferredTime}</span>
@@ -351,6 +448,12 @@ const ContactForm = () => {
 
             {/* reCAPTCHA */}
             <div className="form-group">
+              {/*
+               * Site key is set in frontend/.env:
+               * REACT_APP_RECAPTCHA_SITE_KEY=your_site_key
+               * Get from: https://www.google.com/recaptcha/admin
+               * Type: reCAPTCHA v2 — "I'm not a robot"
+               */}
               <ReCAPTCHA
                 ref={recaptchaRef}
                 sitekey={
@@ -359,19 +462,25 @@ const ContactForm = () => {
                 }
                 onChange={(token) => {
                   setRecaptchaToken(token);
+                  // Clear reCAPTCHA error once user completes it
                   if (errors.recaptcha) {
-                    setErrors((prev) => ({ ...prev, recaptcha: "" }));
+                    setErrors(prev => ({ ...prev, recaptcha: "" }));
                   }
                 }}
                 onExpired={() => {
-                  // reCAPTCHA token expires after 2 min — reset and notify user
+                  // Token expires after 2 minutes — reset and warn user
+                  // With wake-up ping in place, backend should already be awake
+                  // so this should rarely happen
                   setRecaptchaToken(null);
                   recaptchaRef.current?.reset();
-                  toast.error("reCAPTCHA expired. Please verify again before submitting.");
+                  toast.error(
+                    "reCAPTCHA expired. Please verify again and submit quickly."
+                  );
                 }}
                 onErrored={() => {
+                  // Network or reCAPTCHA service error
                   setRecaptchaToken(null);
-                  toast.error("reCAPTCHA error. Please try again.");
+                  toast.error("reCAPTCHA error. Please refresh and try again.");
                 }}
               />
               {errors.recaptcha && (
@@ -380,7 +489,11 @@ const ContactForm = () => {
             </div>
 
             {/* Privacy Policy Checkbox */}
-            <div className={`form-group form-checkbox-group ${errors.agreedToPolicy ? "error-highlight" : ""}`}>
+            <div
+              className={`form-group form-checkbox-group ${
+                errors.agreedToPolicy ? "error-highlight" : ""
+              }`}
+            >
               <label className="form-checkbox-label">
                 <input
                   type="checkbox"
@@ -391,11 +504,19 @@ const ContactForm = () => {
                 />
                 <span>
                   I agree to the{" "}
-                  <Link to="/privacy-policy" target="_blank" className="form-policy-link">
+                  <Link
+                    to="/privacy-policy"
+                    target="_blank"
+                    className="form-policy-link"
+                  >
                     Privacy Policy
                   </Link>
                   {" "}&amp;{" "}
-                  <Link to="/terms-of-use" target="_blank" className="form-policy-link">
+                  <Link
+                    to="/terms-of-use"
+                    target="_blank"
+                    className="form-policy-link"
+                  >
                     Terms of Use
                   </Link>
                 </span>
@@ -411,10 +532,11 @@ const ContactForm = () => {
               className="btn btn-primary contact-form__submit"
               disabled={isSubmitting}
             >
-              {isSubmitting
-                ? <><span className="spinner" /> Submitting...</>
-                : "Submit Inquiry →"
-              }
+              {isSubmitting ? (
+                <><span className="spinner" /> Submitting...</>
+              ) : (
+                "Submit Inquiry →"
+              )}
             </button>
 
           </form>

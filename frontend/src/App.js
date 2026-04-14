@@ -50,19 +50,16 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
-
-  // ✅ Wake up Render backend on app load
+  // Wake up Render backend immediately when app loads
+  // This gives ~30-60 seconds for backend to wake before user reaches contact form
   useEffect(() => {
-    const wakeUp = async () => {
+    const wake = async () => {
       try {
         const base = process.env.REACT_APP_API_URL?.replace("/api", "");
         await axios.get(`${base}/api/health?t=${Date.now()}`);
-      } catch (error) {
-        // silently fail (no console spam)
-      }
+      } catch (_) {}
     };
-
-    wakeUp();
+    wake();
   }, []);
 
   return (
